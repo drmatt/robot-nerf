@@ -1,15 +1,22 @@
 import cv2
+import serial
 import mediapipe as mp
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 
 
+ser = serial.Serial('/dev/tty.usbmodem14601') #'/dev/tty.usbmodem14401') #'/dev/cu.usbmodem1443401')  # open serial port
+
+     # write a string
+
 # For webcam input:
 cap = cv2.VideoCapture(0)
-with mp_pose.Pose(
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5) as pose:
+  
+with mp_pose.Pose( min_detection_confidence=0.5,
+  min_tracking_confidence=0.5) as pose:
   while cap.isOpened():
+
+    print("Here")
 
     success, image = cap.read()
     
@@ -43,11 +50,27 @@ with mp_pose.Pose(
                 x += landmark.x
                 y += landmark.y
                 n += 1
+
+        landmarks = results.pose_landmarks.landmark
         
+        if (landmarks[15].visibility > 0.5 and  
+            landmarks[11].visibility > 0.5 and  
+            landmarks[15].y > landmarks[11].y and 
+            landmarks[16].visibility > 0.5 and 
+            landmarks[12].visibility > 0.5 and 
+            landmarks[16].y > landmarks[12].y) :
+            ser.write( ("g1\n").encode('utf8') )
+        else:
+            ser.write( ("g0\n").encode('utf8') )
+
+
         if n>0 :
             x /= n 
             y /= n 
             print( x, ",", y )
+            angle = (x-0.5) * 80
+            
+            ser.write( (str(angle) + "\n").encode('utf8') )
 
     
     cv2.imshow('MediaPipe Pose', image)
@@ -56,3 +79,4 @@ with mp_pose.Pose(
       break
 
 cap.release()
+ser.close()
