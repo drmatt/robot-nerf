@@ -1,7 +1,12 @@
 
 
 #define PIN_STEP_X  2
+#define PIN_STEP_Y  3
+#define PIN_STEP_Z  4
+
 #define PIN_DIR_X   5
+#define PIN_DIR_Y   6
+#define PIN_DIR_Z   7
 
 #define PIN_GUN   12
 
@@ -30,6 +35,10 @@ double d = 20;
 double position = minAngle;
 double speed = 0;
 
+bool isTriggerPulled = false;
+float triggerPosition = 0;
+float triggerMax = 250;
+
 int actualSteps = 0;
 
 bool isDecelerating = false;
@@ -49,11 +58,16 @@ void setup()
 
   pinMode( PIN_STEP_X, OUTPUT );
   pinMode( PIN_DIR_X, OUTPUT );
+
+  pinMode( PIN_STEP_Y, OUTPUT );
+  pinMode( PIN_DIR_Y, OUTPUT );
+
   pinMode( PIN_GUN, OUTPUT );
   
   // pinMode( PIN_POT_PIN, INPUT );
   pinMode( PIN_LIMIT_X, INPUT_PULLUP );
 
+  triggerPosition = 0;
   isHomed = false;
   Serial.println( "Homing Z...." );
 
@@ -78,24 +92,41 @@ void update() {
     position += speed * (dt/1000000);
 
     int desiredSteps = angleToSteps( position );
-    
-    if (actualSteps<desiredSteps) {
-       digitalWrite( PIN_DIR_X, HIGH );
-       actualSteps ++;
-       digitalWrite( PIN_STEP_X, HIGH );
-       delayMicroseconds( dt/2 );
-       digitalWrite( PIN_STEP_X, LOW );
-       delayMicroseconds( dt/2 );
-    } else if (actualSteps>desiredSteps) {
-       digitalWrite( PIN_DIR_X, LOW );
-       actualSteps --;
-       digitalWrite( PIN_STEP_X, HIGH );
-       delayMicroseconds( dt/2 );
-       digitalWrite( PIN_STEP_X, LOW );
-       delayMicroseconds( dt/2 );
-    } else {
-       delayMicroseconds( dt );
+    bool stepY = false;
+    bool stepX = false;
+
+    if (isTriggerPulled && triggerPosition<triggerMax) {
+      stepY = true;
+      digitalWrite( PIN_DIR_Y, HIGH );
+      triggerPosition ++;
+    } else if (!isTriggerPulled && triggerPosition>0) {
+      stepY = true;
+      triggerPosition --;
+      digitalWrite( PIN_DIR_Y, LOW );
     }
+
+    if (actualSteps<desiredSteps) {
+      digitalWrite( PIN_DIR_X, HIGH );
+      actualSteps ++;
+      stepX = true;
+    } else if (actualSteps>desiredSteps) {
+      digitalWrite( PIN_DIR_X, LOW );
+      actualSteps --;
+      stepX = true;
+    }
+
+    // Serial.print( "triggerPosition: " );
+    // Serial.println( triggerPosition );
+
+    if (stepY) digitalWrite( PIN_STEP_Y, HIGH );
+    if (stepX) digitalWrite( PIN_STEP_X, HIGH );
+    delayMicroseconds( dt/2 );
+
+    if (stepY)  digitalWrite( PIN_STEP_Y, LOW );
+    if (stepX) digitalWrite( PIN_STEP_X, LOW );
+    delayMicroseconds( dt/2 );
+
+   
 }
 
 
@@ -119,6 +150,13 @@ void loop()
     } else if (s1 == "g0") {
       Serial.println("GUN OFF");
       digitalWrite( PIN_GUN, LOW );
+    } else if (s1.equals( "t1" )) {
+      Serial.println("trigger ON");
+      isTriggerPulled = true;
+      // digitalWrite( PIN_GUN, HIGH );
+    } else if (s1 == "t0") {
+      Serial.println("trigger OFF");
+      isTriggerPulled = false;
     } else {
       int n = s1.toInt();
       desiredPosition = (double)n;
@@ -155,6 +193,8 @@ void loop()
   } 
   else {
     update();
+
+    
   }
 
 }
