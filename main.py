@@ -4,8 +4,19 @@ import mediapipe as mp
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 
+from os import listdir
+from os.path import isfile, join
+files = [f for f in listdir("/dev") if f.startswith("tty.usbmodem")]
 
-ser = serial.Serial('/dev/tty.usbmodem14601') #'/dev/tty.usbmodem14401') #'/dev/cu.usbmodem1443401')  # open serial port
+print( files, len(files) )
+ser = None
+
+if (len(files) > 0) :
+  ser = serial.Serial(join("/dev",files[0])) # open serial port
+  
+else :
+  print("No serial port found")
+
 
      # write a string
 
@@ -41,7 +52,8 @@ with mp_pose.Pose( min_detection_confidence=0.5,
         image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
     
-    if results.pose_landmarks is not None :
+
+    if (ser is not None and results.pose_landmarks is not None) :
         x = 0
         y = 0
         n = 0
@@ -55,14 +67,21 @@ with mp_pose.Pose( min_detection_confidence=0.5,
         
         if (landmarks[15].visibility > 0.5 and  
             landmarks[11].visibility > 0.5 and  
-            landmarks[15].y > landmarks[11].y and 
             landmarks[16].visibility > 0.5 and 
-            landmarks[12].visibility > 0.5 and 
-            landmarks[16].y > landmarks[12].y) :
+            landmarks[12].visibility > 0.5) :
+
             ser.write( ("g1\n").encode('utf8') )
+
+            if (landmarks[15].y > landmarks[11].y and 
+                landmarks[16].y > landmarks[12].y) :
+
+              ser.write( ("t1\n").encode('utf8') )
+            else:
+              ser.write( ("t0\n").encode('utf8') )
+
         else:
             ser.write( ("g0\n").encode('utf8') )
-
+            ser.write( ("t0\n").encode('utf8') )
 
         if n>0 :
             x /= n 
