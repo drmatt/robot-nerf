@@ -12,14 +12,71 @@ from os.path import isfile, join
 
 from svgpathtools import *
 
+# import matplotlib.pyplot as plt
+# plt.rcParams["figure.figsize"] = [7.50, 3.50]
+# plt.rcParams["figure.autolayout"] = True
+
+# print("load SVG")
+# paths, attributes = svg2paths("pikachu.svg")
+
+# svg_xmin=9999999
+# svg_xmax=-9999999
+# svg_ymin=9999999
+# svg_ymax=-9999999
+
+
+
+
+
+# # for path in paths:
+# path = paths[0]
+
+# subPaths = path.continuous_subpaths()
+# # for path in subPaths:
+
+# path = subPaths[0]
+
+# segment_length = 100
+
+
+
+# for path in subPaths:
+#     NUM_SAMPLES= math.ceil(path.length() / segment_length)
+#     x_values = []
+#     y_values = []
+
+#     for i in range(NUM_SAMPLES):
+#         p = path.point(i/(float(NUM_SAMPLES)-1))
+        
+#         x = p.real
+#         y = p.imag
+
+#         x_values.append(x)
+#         y_values.append(y)
+
+#         if (x>svg_xmax):
+#             svg_xmax=x 
+
+#         if (x<svg_xmin):
+#             svg_xmin=x 
+
+#         if (y>svg_ymax):
+#             svg_ymax=y
+
+#         if (y<svg_ymin):
+#             svg_ymin=y 
+
+#     plt.plot(x_values, y_values, 'bo', linestyle="-")
+# plt.show()
+# exit
 
 
 # initial angles after homing
 HOME_Q1 = -17.000
 HOME_Q2 = 142.511
-FEED = 2000
+FEED = 3000
 PEN_DOWN = -5
-PEN_UP = -30
+PEN_UP = -20
 
  #"G10P0L20X0Y0Z0" - reset zero
             #"G0X107Y-142.511" - move to origin
@@ -57,7 +114,7 @@ def move_to(ser, x,y,z, feed):
         return
 
     command = "G1X{:.2f}Y{:.2f}Z{:.2f}F{:.2f}\r\n".format(q[0],q[1],z,feed)
-    print( command )
+    # print( command )
     ser.write( command.encode('utf8') )
 
     # num_steps = 10
@@ -127,7 +184,7 @@ def main():
             if (not hasSentInitialisation): 
                 hasSentInitialisation = True
                 ser.write( HOME_COMMAND.encode('utf8') )
-                raise_pen(ser)
+                move_to(ser, 0, 150, PEN_UP, FEED)
                 # move_to(ser, current_x, current_y, -15, 1000)
 
         if (inputQueue.qsize() > 0):
@@ -138,7 +195,9 @@ def main():
                 break
             
             if (input_str == 'pic'):
-                print_svg(ser,'pikachu.svg')
+                #print_svg(ser,'pikachu.svg')
+                print_svg(ser,'Design.svg')
+
                 # print_svg(ser,'cartman.svg')
 
             if (input_str == "sq"):
@@ -179,17 +238,18 @@ def print_svg(ser, file):
     print("load SVG")
     paths, attributes = svg2paths(file)
 
+    print( "Loaded" ) 
+
     svg_xmin=9999999
     svg_xmax=-9999999
     svg_ymin=9999999
     svg_ymax=-9999999
 
-    NUM_SAMPLES= 1000 # math.ceil(path.length() / segment_length)
+    NUM_SAMPLES = 1000
     
     for path in paths:
-    
         for i in range(NUM_SAMPLES):
-            p = path.point(i/(float(NUM_SAMPLES)))
+            p = path.point(i/(float(NUM_SAMPLES)-1))
             
             x = p.real
             y = p.imag
@@ -205,15 +265,16 @@ def print_svg(ser, file):
 
             if (y<svg_ymin):
                 svg_ymin=y 
-        
+
+    
     svg_width = svg_xmax-svg_xmin
     svg_height = svg_ymax-svg_ymin 
     print( "SVG bbox:", svg_xmin, svg_xmax, svg_ymin, svg_ymax )
     
-    PRINT_X_MIN = -50
-    PRINT_X_MAX = 50
+    PRINT_X_MIN = -75
+    PRINT_X_MAX = 75
     PRINT_Y_MIN = 150
-    PRINT_Y_MAX = 250
+    PRINT_Y_MAX = 300
     PRINT_WIDTH = PRINT_X_MAX - PRINT_X_MIN
     PRINT_HEIGHT = PRINT_Y_MAX - PRINT_Y_MIN
 
@@ -236,63 +297,40 @@ def print_svg(ser, file):
         print("scale", scale, "offset_x", offset_x)
         offset_y = 0
 
+    for p in paths:
+        for path in p.continuous_subpaths():
+        
+            segment_length = 2
+            NUM_SAMPLES= math.ceil(path.length() * scale / segment_length)
+            if (NUM_SAMPLES<5):
+                NUM_SAMPLES = 5
 
-    
-    
-    print(NUM_SAMPLES)
+            raise_pen(ser);
+            time.sleep(0.2)
+            isPenUp = True 
 
-    xmin=9999999
-    xmax=-9999999
-    ymin=9999999
-    ymax=-9999999
+            for i in range(NUM_SAMPLES):
+                p = path.point(i/(float(NUM_SAMPLES)-1))
+                
+                x = (p.real-svg_xmin)*scale + offset_x + PRINT_X_MIN 
+                y = (p.imag-svg_ymin)*scale + offset_y + PRINT_Y_MIN
+                
+                if (isPenUp):
+                    z = PEN_UP
+                else:
+                    z = PEN_DOWN
 
+                move_to(ser, x,y, z, FEED)
 
-    
-    
-    for path in paths:
+                if (i==0):
+                    lower_pen(ser)
+                    time.sleep(0.2)
+                    isPenUp = False
 
-        segment_length = 1
-        NUM_SAMPLES= math.ceil(path.length() * scale / segment_length)
-        raise_pen(ser);
-        isPenUp = True 
+                time.sleep(0.2)
 
-        for i in range(NUM_SAMPLES):
-            p = path.point(i/(float(NUM_SAMPLES)))
-            
-            x = (p.real-svg_xmin)*scale + offset_x + PRINT_X_MIN 
-            y = (p.imag-svg_ymin)*scale + offset_y + PRINT_Y_MIN
-
-            if (x>xmax):
-                xmax=x 
-
-            if (x<xmin):
-                xmin=x 
-
-            if (y>ymax):
-                ymax=y
-
-            if (y<ymin):
-                ymin=y 
-            
-            print("{:.2f},{:.2f}".format(p.real, p.imag), "=>", "{:.2f},{:.2f}".format(x, y), )
-
-            if (isPenUp):
-                z = PEN_UP
-            else:
-                z = PEN_DOWN
-
-            move_to(ser, x,y, z, FEED)
-
-            if (i==0):
-                lower_pen(ser)
-                isPenUp = False
-
-            time.sleep(0.05)
-    
-    width = xmax-xmin
-    height = ymax-ymin 
-    print( "iterate:", xmin, xmax, ymin, ymax, width, height )
-    
+    move_to(ser, x,y, PEN_UP, FEED)
+    print("Finished")
 
 if (__name__ == '__main__'): 
     main()
