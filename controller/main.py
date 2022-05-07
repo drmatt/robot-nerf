@@ -74,7 +74,7 @@ from svgpathtools import *
 # initial angles after homing
 HOME_Q1 = -17.000
 HOME_Q2 = 142.511
-FEED = 3000
+FEED = 2000
 PEN_DOWN = -5
 PEN_UP = -20
 
@@ -106,37 +106,13 @@ def inverse_kinematics(h,k):
     return [ numpy.rad2deg(q1), numpy.rad2deg(q2)]
 
 def move_to(ser, x,y,z, feed):
-    # global current_x, current_y
-
     q = inverse_kinematics(x,y)
     if (math.isnan(q[0]) or math.isnan(q[1])):
         print( "inverse kinematics failed" )
         return
 
     command = "G1X{:.2f}Y{:.2f}Z{:.2f}F{:.2f}\r\n".format(q[0],q[1],z,feed)
-    # print( command )
     ser.write( command.encode('utf8') )
-
-    # num_steps = 10
-    # dx = x-current_x
-    # dy = y-current_y
-    # for i in range(0,num_steps):
-    #     nx = current_x + (i/num_steps) * dx
-    #     ny = current_y + (i/num_steps) * dy
-    #     q = inverse_kinematics(nx,ny)
-    #     command = "G1X{:.2f}Y{:.2f}Z{:.2f}F{:.2f}\r\n".format(q[0],q[1],z,feed)
-    #     print( command )
-    #     ser.write( command.encode('utf8') )
-        
-    # q = inverse_kinematics(x,y)
-    # command = "G1X{:.2f}Y{:.2f}Z{:.2f}F{:.2f}\r\n".format(q[0],q[1],z,feed)
-    # print( command )
-    # ser.write( command.encode('utf8') )
-
-    # current_x = x
-    # current_y = y
-    # time.sleep(0.2)
-
 
 def read_kbd_input(inputQueue):
     print('Ready for keyboard input:')
@@ -194,11 +170,19 @@ def main():
                 print("Exiting serial terminal.")
                 break
             
-            if (input_str == 'pic'):
-                #print_svg(ser,'pikachu.svg')
-                print_svg(ser,'Design.svg')
+            if (input_str.startswith('pic')):
+                parts = input_str.split()
+                file = parts[1] + ".svg"
+                print("Printing " + file + "...")
+                print_svg(ser, file)
+                # print_svg(ser,'pikachu.svg')
+                # print_svg(ser,'foden.svg')
+                # print_svg(ser,'swan.svg')
 
                 # print_svg(ser,'cartman.svg')
+
+            if (input_str == "home"):
+                
 
             if (input_str == "sq"):
                 move_to(ser, -50, 150, -15, FEED)
@@ -271,10 +255,16 @@ def print_svg(ser, file):
     svg_height = svg_ymax-svg_ymin 
     print( "SVG bbox:", svg_xmin, svg_xmax, svg_ymin, svg_ymax )
     
-    PRINT_X_MIN = -75
-    PRINT_X_MAX = 75
-    PRINT_Y_MIN = 150
-    PRINT_Y_MAX = 300
+    # PRINT_X_MIN = -75
+    # PRINT_X_MAX = 75
+    # PRINT_Y_MIN = 150
+    # PRINT_Y_MAX = 300
+
+    PRINT_X_MIN = -80
+    PRINT_X_MAX = 80
+    PRINT_Y_MIN = 130
+    PRINT_Y_MAX = 280
+
     PRINT_WIDTH = PRINT_X_MAX - PRINT_X_MIN
     PRINT_HEIGHT = PRINT_Y_MAX - PRINT_Y_MIN
 
@@ -306,10 +296,10 @@ def print_svg(ser, file):
                 NUM_SAMPLES = 5
 
             raise_pen(ser);
-            time.sleep(0.2)
+            time.sleep(1)
             isPenUp = True 
 
-            for i in range(NUM_SAMPLES):
+            for i in range(NUM_SAMPLES-1):
                 p = path.point(i/(float(NUM_SAMPLES)-1))
                 
                 x = (p.real-svg_xmin)*scale + offset_x + PRINT_X_MIN 
@@ -324,10 +314,10 @@ def print_svg(ser, file):
 
                 if (i==0):
                     lower_pen(ser)
-                    time.sleep(0.2)
+                    time.sleep(1)
                     isPenUp = False
 
-                time.sleep(0.2)
+                time.sleep(0.02)
 
     move_to(ser, x,y, PEN_UP, FEED)
     print("Finished")
