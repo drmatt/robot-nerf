@@ -12,65 +12,6 @@ from os.path import isfile, join
 
 from svgpathtools import *
 
-# import matplotlib.pyplot as plt
-# plt.rcParams["figure.figsize"] = [7.50, 3.50]
-# plt.rcParams["figure.autolayout"] = True
-
-# print("load SVG")
-# paths, attributes = svg2paths("pikachu.svg")
-
-# svg_xmin=9999999
-# svg_xmax=-9999999
-# svg_ymin=9999999
-# svg_ymax=-9999999
-
-
-
-
-
-# # for path in paths:
-# path = paths[0]
-
-# subPaths = path.continuous_subpaths()
-# # for path in subPaths:
-
-# path = subPaths[0]
-
-# segment_length = 100
-
-
-
-# for path in subPaths:
-#     NUM_SAMPLES= math.ceil(path.length() / segment_length)
-#     x_values = []
-#     y_values = []
-
-#     for i in range(NUM_SAMPLES):
-#         p = path.point(i/(float(NUM_SAMPLES)-1))
-        
-#         x = p.real
-#         y = p.imag
-
-#         x_values.append(x)
-#         y_values.append(y)
-
-#         if (x>svg_xmax):
-#             svg_xmax=x 
-
-#         if (x<svg_xmin):
-#             svg_xmin=x 
-
-#         if (y>svg_ymax):
-#             svg_ymax=y
-
-#         if (y<svg_ymin):
-#             svg_ymin=y 
-
-#     plt.plot(x_values, y_values, 'bo', linestyle="-")
-# plt.show()
-# exit
-
-
 # initial angles after homing
 HOME_Q1 = -17.000
 HOME_Q2 = 142.511
@@ -78,40 +19,47 @@ FEED = 2000
 PEN_DOWN = -5
 PEN_UP = -20
 
- #"G10P0L20X0Y0Z0" - reset zero
-            #"G0X107Y-142.511" - move to origin
+PRINT_X_MIN = -90
+PRINT_X_MAX = 90
+PRINT_Y_MIN = 130
+PRINT_Y_MAX = 310
+
+
 
 HOME_COMMAND = "$H\r\nG10P0L20X"+str(HOME_Q1)+"Y"+str(HOME_Q2)+"Z0\r\n"
 
-current_x = 0
-current_y = 150
+X = 0
+Y = 150
 
 def raise_pen(ser):
-    ser.write( ("G0Z" + str(PEN_UP) +"F1000\r\n").encode('utf8') )
+    command = "G1X{:.2f}Y{:.2f}Z{:.2f}F{:.2f}\r\n".format(X,Y,PEN_UP,FEED)
+    ser.write( command.encode('utf8') )
 
 def lower_pen(ser):
-    ser.write( ("G0Z" + str(PEN_DOWN) +"F1000\r\n").encode('utf8') )
+    command = "G1X{:.2f}Y{:.2f}Z{:.2f}F{:.2f}\r\n".format(X,Y,PEN_DOWN,FEED)
+    ser.write( command.encode('utf8') )
 
 def inverse_kinematics(h,k):
     l1 = 200
     l2 = 120
     q2 = numpy.arccos( (h*h+k*k-l1*l1-l2*l2) / (2*l1*l2) )
-    # q1 = numpy.arctan(k/h) - numpy.arctan( (l2*numpy.sin(q2)) / (l1 + l2*numpy.cos(q2)) )
-
     q1 = numpy.arctan2(k,h) - numpy.arctan2( l2*numpy.sin(q2) , l1 + l2*numpy.cos(q2) )
-
-    # if (h<0):
-    #     q1 = q1 + pi
 
     return [ numpy.rad2deg(q1), numpy.rad2deg(q2)]
 
 def move_to(ser, x,y,z, feed):
+    global X,Y
     q = inverse_kinematics(x,y)
     if (math.isnan(q[0]) or math.isnan(q[1])):
         print( "inverse kinematics failed" )
         return
 
-    command = "G1X{:.2f}Y{:.2f}Z{:.2f}F{:.2f}\r\n".format(q[0],q[1],z,feed)
+    X = q[0]
+    Y = q[1]
+
+    print("({:.2f},{:.2f}) => ({:.2f},{:.2f}) (Z:{:.2f})".format(x,y, X,Y,z))
+
+    command = "G1X{:.2f}Y{:.2f}Z{:.2f}F{:.2f}\r\n".format(X,Y,z,feed)
     ser.write( command.encode('utf8') )
 
 def read_kbd_input(inputQueue):
@@ -159,8 +107,8 @@ def main():
 
             if (not hasSentInitialisation): 
                 hasSentInitialisation = True
-                ser.write( HOME_COMMAND.encode('utf8') )
-                move_to(ser, 0, 150, PEN_UP, FEED)
+                # ser.write( HOME_COMMAND.encode('utf8') )
+                # move_to(ser, 0, 150, PEN_UP, FEED)
                 # move_to(ser, current_x, current_y, -15, 1000)
 
         if (inputQueue.qsize() > 0):
@@ -178,12 +126,20 @@ def main():
                 # print_svg(ser,'pikachu.svg')
                 # print_svg(ser,'foden.svg')
                 # print_svg(ser,'swan.svg')
-
                 # print_svg(ser,'cartman.svg')
 
             if (input_str == "home"):
-                
+                ser.write( HOME_COMMAND.encode('utf8') )
 
+            if (input_str == "pen up"):
+                ser.write( HOME_COMMAND.encode('utf8') )
+
+            if (input_str == "pen down"):
+                ser.write( HOME_COMMAND.encode('utf8') )
+            
+            if (input_str == "origin"):
+                move_to(ser, 0, 150, PEN_UP, FEED)
+            
             if (input_str == "sq"):
                 move_to(ser, -50, 150, -15, FEED)
                 move_to(ser, -50, 250, -15, FEED)
@@ -203,21 +159,6 @@ def main():
     print("End.")
 
 def print_svg(ser, file):
-
-        
-        # doc = Document('pikachu.svg')
-        # print(doc.bbox())
-        # # for path in doc.paths():
-        # #     # Do something with the transformed Path object.
-        # #     foo(path)
-        # #     # Inspect the raw SVG element, e.g. change its attributes
-        # #     foo(path.element)
-        # #     transform = result.transform
-        # #     # Use the transform that was applied to the path.
-        # #     foo(path.transform)
-        # # foo(doc.tree)  # do stuff using ElementTree's functionality
-        # doc.display()  # display doc in OS's default application
-        # # doc.save('my_new_file.html')
 
     print("load SVG")
     paths, attributes = svg2paths(file)
@@ -254,16 +195,6 @@ def print_svg(ser, file):
     svg_width = svg_xmax-svg_xmin
     svg_height = svg_ymax-svg_ymin 
     print( "SVG bbox:", svg_xmin, svg_xmax, svg_ymin, svg_ymax )
-    
-    # PRINT_X_MIN = -75
-    # PRINT_X_MAX = 75
-    # PRINT_Y_MIN = 150
-    # PRINT_Y_MAX = 300
-
-    PRINT_X_MIN = -80
-    PRINT_X_MAX = 80
-    PRINT_Y_MIN = 130
-    PRINT_Y_MAX = 280
 
     PRINT_WIDTH = PRINT_X_MAX - PRINT_X_MIN
     PRINT_HEIGHT = PRINT_Y_MAX - PRINT_Y_MIN
@@ -295,31 +226,22 @@ def print_svg(ser, file):
             if (NUM_SAMPLES<5):
                 NUM_SAMPLES = 5
 
-            raise_pen(ser);
-            time.sleep(1)
-            isPenUp = True 
-
-            for i in range(NUM_SAMPLES-1):
+            for i in range(NUM_SAMPLES):
                 p = path.point(i/(float(NUM_SAMPLES)-1))
                 
                 x = (p.real-svg_xmin)*scale + offset_x + PRINT_X_MIN 
                 y = (p.imag-svg_ymin)*scale + offset_y + PRINT_Y_MIN
                 
-                if (isPenUp):
-                    z = PEN_UP
-                else:
-                    z = PEN_DOWN
-
-                move_to(ser, x,y, z, FEED)
-
                 if (i==0):
-                    lower_pen(ser)
-                    time.sleep(1)
-                    isPenUp = False
+                    move_to(ser, x,y, PEN_UP, FEED)
 
-                time.sleep(0.02)
+                move_to(ser, x,y, PEN_DOWN, FEED)
 
-    move_to(ser, x,y, PEN_UP, FEED)
+                if (i==NUM_SAMPLES-1):
+                    move_to(ser, x,y, PEN_UP, FEED)
+
+                time.sleep(0.1)
+
     print("Finished")
 
 if (__name__ == '__main__'): 
